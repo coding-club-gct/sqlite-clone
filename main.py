@@ -31,6 +31,7 @@ class MetaCommandResut(Enum):
     SUCCESS = 1
     UNRECOGNIZED = 2
 
+
 class ExecuteResult(Enum):
     SUCCESS = 1
     TABLE_FULL = 2
@@ -42,11 +43,12 @@ class Row:
         self.username = username
         self.email = email
 
+
 class Table:
     def __init__(self) -> None:
         self.num_rows = 0
         self.pages = [None] * TABLE_MAX_PAGES
-    
+
     def row_slot(self, row_num):
         page_num = row_num // ROWS_PER_PAGE
         page = self.pages[page_num]
@@ -55,8 +57,8 @@ class Table:
             page = self.pages[page_num] = bytearray(PAGE_SIZE)
         row_offset = row_num % ROWS_PER_PAGE
         byte_offset = row_offset * ROW_SIZE
-        return memoryview(page)[byte_offset:byte_offset + ROW_SIZE]
-    
+        return memoryview(page)[byte_offset : byte_offset + ROW_SIZE]
+
 
 class Statement:
     def __init__(self, type: StatementType, row_to_insert: Row):
@@ -65,22 +67,24 @@ class Statement:
 
 
 def serialize_row(row: Row):
-    return struct.pack(f"{ID_SIZE}s{USERNAME_SIZE}s{EMAIL_SIZE}s",
-                       row.id.to_bytes(ID_SIZE, byteorder='little'),
-                       row.username.encode('utf-8').ljust(USERNAME_SIZE, b'\0'),
-                       row.email.encode('utf-8').ljust(EMAIL_SIZE, b'\0'))
-
+    return struct.pack(
+        f"{ID_SIZE}s{USERNAME_SIZE}s{EMAIL_SIZE}s",
+        row.id.to_bytes(ID_SIZE, byteorder="little"),
+        row.username.encode("utf-8").ljust(USERNAME_SIZE, b"\0"),
+        row.email.encode("utf-8").ljust(EMAIL_SIZE, b"\0"),
+    )
 
 
 def deserialize_row(data) -> Row:
     try:
         unpacked_data = struct.unpack(f"{ID_SIZE}s{USERNAME_SIZE}s{EMAIL_SIZE}s", data)
-        return Row(int.from_bytes(unpacked_data[0], byteorder='little'),
-                   unpacked_data[1].decode('utf-8').rstrip('\x00'),
-                   unpacked_data[2].decode('utf-8').rstrip('\x00'))
+        return Row(
+            int.from_bytes(unpacked_data[0], byteorder="little"),
+            unpacked_data[1].decode("utf-8").rstrip("\x00"),
+            unpacked_data[2].decode("utf-8").rstrip("\x00"),
+        )
     except struct.error:
         return None
-
 
 
 def print_row(row: Row) -> None:
@@ -103,7 +107,7 @@ def repl() -> None:
     while True:
         try:
             user_input = input("sqlite  ")
-            if (user_input[0] == '.'):
+            if user_input[0] == ".":
                 match do_meta_command(user_input, table):
                     case MetaCommandResut.SUCCESS:
                         continue
@@ -150,12 +154,12 @@ def prepare_statement(input_string: str) -> (Statement, PrepareResult):
 
 
 def execute_insert(statement: Statement, table: Table) -> ExecuteResult:
-    if(table.num_rows >= TABLE_MAX_ROWS):
+    if table.num_rows >= TABLE_MAX_ROWS:
         return ExecuteResult.TABLE_FULL
     row_to_insert = statement.row_to_insert
     serialized_row = serialize_row(row_to_insert)
     slot = table.row_slot(table.num_rows)
-    slot[:len(serialized_row)] = serialized_row
+    slot[: len(serialized_row)] = serialized_row
     table.num_rows += 1
     return ExecuteResult.SUCCESS
 
@@ -177,7 +181,7 @@ def execute_statement(statement: Statement, table: Table) -> ExecuteResult:
 
 
 def do_meta_command(input_string: str, table: Table) -> MetaCommandResut:
-    if (input_string == ".exit"):
+    if input_string == ".exit":
         free_table(table)
         exit(0)
     else:

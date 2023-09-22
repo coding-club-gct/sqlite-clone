@@ -24,10 +24,13 @@ class StatementType(Enum):
 class PrepareResult(Enum):
     SUCCESS = 1
     SYNTAX_ERROR = 2
-    UNRECOGNIZED_STATEMENT = 2
+    ERROR = 3
+    UNRECOGNIZED_STATEMENT = 4
+    NEGATIVE_ID = 5
+    STRING_TOO_LONG = 6
 
 
-class MetaCommandResut(Enum):
+class MetaCommandResult(Enum):
     SUCCESS = 1
     UNRECOGNIZED = 2
 
@@ -109,9 +112,9 @@ def repl() -> None:
             user_input = input("sqlite  ")
             if user_input[0] == ".":
                 match do_meta_command(user_input, table):
-                    case MetaCommandResut.SUCCESS:
+                    case MetaCommandResult.SUCCESS:
                         continue
-                    case MetaCommandResut.UNRECOGNIZED:
+                    case MetaCommandResult.UNRECOGNIZED:
                         print(f"Unrecognized command {user_input}")
                         continue
             else:
@@ -124,17 +127,26 @@ def repl() -> None:
                             case ExecuteResult.SUCCESS:
                                 print("Executed.")
                             case ExecuteResult.TABLE_FULL:
-                                print("ErrorL Table full.")
+                                print("Error: Table full.")
                                 break
                     case PrepareResult.ERROR:
                         print(f"Unrecognized keyword at start of {user_input}")
+                        continue
+                    case PrepareResult.NEGATIVE_ID:
+                        print("ID must be positive")
+                        continue
+                    case PrepareResult.STRING_TOO_LONG:
+                        print("String is too long")
+                        continue
+                    case PrepareResult.SYNTAX_ERROR:
+                        print("Syntax error. Could not parse statement.")
                         continue
 
         except Exception as e:
             print(f"Error: {e}")
 
 
-def prepare_statement(input_string: str) -> (Statement, PrepareResult):
+def prepare_statement(input_string: str) -> (Statement or None, PrepareResult):
     str_split = input_string.split()
     statement_type = str_split[0]
     match statement_type:
@@ -142,15 +154,24 @@ def prepare_statement(input_string: str) -> (Statement, PrepareResult):
             if len(str_split) < 4:
                 return (None, PrepareResult.SYNTAX_ERROR)
             type = StatementType.INSERT
-            row = Row(int(str_split[1]), str_split[2], str_split[3])
+            id = int(str_split[1])
+            username = str_split[2]
+            email = str_split[3]
+            row = Row(id, username, email)
             statement = Statement(type, row)
+            if id < 0:
+                return (statement, PrepareResult.SUCCESS)
+            if len(username) > USERNAME_SIZE:
+                return (statement, PrepareResult.STRING_TOO_LONG)
+            if len(email) > EMAIL_SIZE:
+                return (statement, PrepareResult.STRING_TOO_LONG)
             return (statement, PrepareResult.SUCCESS)
         case "select":
             type = StatementType.SELECT
             statement = Statement(type, None)
             return (statement, PrepareResult.SUCCESS)
         case _:
-            return (statement, PrepareResult.UNRECOGNIZED_STATEMENT)
+            return (None, PrepareResult.UNRECOGNIZED_STATEMENT)
 
 
 def execute_insert(statement: Statement, table: Table) -> ExecuteResult:
@@ -180,12 +201,12 @@ def execute_statement(statement: Statement, table: Table) -> ExecuteResult:
             return execute_select(statement, table)
 
 
-def do_meta_command(input_string: str, table: Table) -> MetaCommandResut:
+def do_meta_command(input_string: str, table: Table) -> MetaCommandResult:
     if input_string == ".exit":
         free_table(table)
         exit(0)
     else:
-        return MetaCommandResut.UNRECOGNIZED
+        return MetaCommandResult.UNRECOGNIZED
 
 
 if __name__ == "__main__":

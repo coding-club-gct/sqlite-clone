@@ -8,6 +8,7 @@ class StatementType(Enum):
     INSERT = 1
     SELECT = 2
 
+
 class Statement:
     def __init__(self, type: StatementType, row_to_insert: Row):
         self.type = type
@@ -32,6 +33,7 @@ class ExecuteResult(Enum):
     SUCCESS = 1
     TABLE_FULL = 2
 
+
 def prepare_statement(input_string: str) -> (Statement or None, PrepareResult):
     str_split = input_string.split()
     statement_type = str_split[0]
@@ -46,7 +48,7 @@ def prepare_statement(input_string: str) -> (Statement or None, PrepareResult):
             row = Row(id, username, email)
             statement = Statement(type, row)
             if id < 0:
-                return (statement, PrepareResult.SUCCESS)
+                return (statement, PrepareResult.NEGATIVE_ID)
             if len(username) > USERNAME_SIZE:
                 return (statement, PrepareResult.STRING_TOO_LONG)
             if len(email) > EMAIL_SIZE:
@@ -89,7 +91,8 @@ def execute_statement(statement: Statement, table: Table) -> ExecuteResult:
 
 def do_meta_command(input_string: str, table: Table) -> MetaCommandResult:
     if input_string == ".exit":
-        free_table(table)
+        db_close(table)
+        print("Goodbye!")
         exit(0)
     else:
         return MetaCommandResult.UNRECOGNIZED

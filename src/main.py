@@ -44,8 +44,5 @@ def repl() -> None:
             print(f"Error: {e}")
 
 
-
-
-
 if __name__ == "__main__":
     repl()

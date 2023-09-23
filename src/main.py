@@ -39,6 +39,9 @@ def repl() -> None:
                     case PrepareResult.SYNTAX_ERROR:
                         print("Syntax error. Could not parse statement.")
                         continue
+                    case PrepareResult.UNRECOGNIZED_STATEMENT:
+                        print(f"Unrecognized keyword at start of {user_input}")
+                        continue
 
         # except Exception as e:
         #     print(f"Error: {e}")

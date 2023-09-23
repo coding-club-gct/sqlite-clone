@@ -4,9 +4,9 @@ from lib.statement import *
 
 
 def repl() -> None:
-    table = new_table()
+    table = db_open("db")
     while True:
-        try:
+        # try:
             user_input = input("sqlite  ")
             if user_input[0] == ".":
                 match do_meta_command(user_input, table):
@@ -40,8 +40,8 @@ def repl() -> None:
                         print("Syntax error. Could not parse statement.")
                         continue
 
-        except Exception as e:
-            print(f"Error: {e}")
+        # except Exception as e:
+        #     print(f"Error: {e}")
 
 
 if __name__ == "__main__":

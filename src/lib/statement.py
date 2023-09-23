@@ -70,7 +70,6 @@ def execute_insert(statement: Statement, table: Table) -> ExecuteResult:
     table.num_rows += 1
     return ExecuteResult.SUCCESS
 
-
 def execute_select(statement: Statement, table: Table) -> ExecuteResult:
     for i in range(table.num_rows):
         data = table.row_slot(i)

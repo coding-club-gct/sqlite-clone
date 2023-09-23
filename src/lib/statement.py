@@ -34,7 +34,7 @@ class ExecuteResult(Enum):
     TABLE_FULL = 2
 
 
-def prepare_statement(input_string: str) -> (Statement or None, PrepareResult):
+def prepare_statement(input_string: str) -> tuple[Statement or None, PrepareResult]:
     str_split = input_string.split()
     statement_type = str_split[0]
     match statement_type:

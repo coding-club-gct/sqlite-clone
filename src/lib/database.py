@@ -1,75 +1,56 @@
 import errno
-from constants import*
-import struct
 import os
+import struct
+from constants import *
 
 
-class pager:
+class Pager:
     def __init__(self) -> None:
-        self.file_descriptor=0
-        self.file_size=0
-        self.pages=[None]*TABLE_MAX_PAGES
-    
+        self.file_descriptor = 0
+        self.file_length = 0
+        self.pages = [None] * TABLE_MAX_PAGES
 
-class cursor:
-    def __init__(self,table:'table') :
-        self.table=table
-        self.num_rows=0
-        self.end_of_table=table.num_rows==0
 
-class row:
-    def __init__(self, id: int, username: str, email: str) -> None:
+class Table:
+    def __init__(self) -> None:
+        self.num_rows = 0
+        self.pager: Pager or None = None
+
+    def row_slot(self, row_num):
+        page_num = row_num // ROWS_PER_PAGE
+        page = get_page(self.pager, page_num)
+        row_offset = row_num % ROWS_PER_PAGE
+        byte_offset = row_offset * ROW_SIZE
+        return memoryview(page)[byte_offset : byte_offset + ROW_SIZE]
+
+
+class Row:
+    def __init__(self, id: int, username: str, email: str):
         self.id = id
         self.username = username
         self.email = email
 
 
-class table:
-    def __init__(self) -> None:
-        self.num_rows = 0
-        self.pager : pager or None =None
+def db_open(filename: str) -> Table:
+    pager = pager_open(filename)
+    num_rows = pager.file_length // ROW_SIZE
+    table = Table()
+    table.num_rows = num_rows
+    table.pager = pager
+    return table
 
-    def cursor_value(self, cursor:cursor):
-        row_num=cursor.num_rows
-        page_num = row_num // ROWS_PER_PAGE
-        page = get_page(cursor.table.pager,page_num)
-        row_offset = row_num % ROWS_PER_PAGE
-        byte_offset = row_offset * ROW_SIZE
-        return memoryview(page)[byte_offset:byte_offset + ROW_SIZE]
-    
-def table_start(table:table):
-    return cursor(table)
 
-def table_end(table:table):
-    Cursor=cursor(table)
-    Cursor.num_rows=table.num_rows
-    Cursor.end_of_table=True
-    return Cursor
-
-def cursor_advance(cursor:cursor):
-    cursor.num_rows+=1
-    if cursor.num_rows>=cursor.table.num_rows:
-        cursor.end_of_table=True
-
-def db_open(filename:str)->table:
-    pager=pager_open(filename)
-    num_of_rows=pager.file_length//ROW_SIZE
-    Table=table()
-    Table.num_rows=num_of_rows
-    Table.pager=pager
-    return Table
-
-def pager_open(file_name:str)->pager:
+def pager_open(filename: str) -> Pager:
     try:
-        file_descripter=os.open(
-            file_name,
+        file_descriptor = os.open(
+            filename,
             os.O_RDWR | os.O_CREAT,
             0o600,
         )
-        file_length=os.path.getsize(file_name)
-        Pager=pager()
-        pager.filename=file_name
-        pager.file_descriptor = file_descripter
+        file_length = os.path.getsize(filename)
+        pager = Pager()
+        pager.filename = filename
+        pager.file_descriptor = file_descriptor
         pager.file_length = file_length
         return pager
 
@@ -78,7 +59,7 @@ def pager_open(file_name:str)->pager:
         exit(1)
 
 
-def get_page(pager: pager, page_num: int):
+def get_page(pager: Pager, page_num: int):
     if page_num >= TABLE_MAX_PAGES:
         print(
             f"Tried to fetch page number out of bounds. {page_num} > {TABLE_MAX_PAGES}"
@@ -99,13 +80,13 @@ def get_page(pager: pager, page_num: int):
                 print(f"Error reading file: {os.strerror(errno.errno)}")
                 exit(1)
 
-        page[: len(bytes_read)] = bytes_read
+        page[:len(bytes_read)] = bytes_read
         pager.pages[page_num] = page
 
     return pager.pages[page_num]
 
 
-def db_close(table: table) -> None:
+def db_close(table: Table) -> None:
     pager = table.pager
     num_full_pages = table.num_rows // ROWS_PER_PAGE
 
@@ -131,7 +112,7 @@ def db_close(table: table) -> None:
     del table
 
 
-def pager_flush(pager: pager, page_num: int, size: int) -> None:
+def pager_flush(pager: Pager, page_num: int, size: int) -> None:
     if pager.pages[page_num] is None:
         print("Tried to flush null page")
         exit(1)
@@ -150,22 +131,19 @@ def pager_flush(pager: pager, page_num: int, size: int) -> None:
 
 
 
-
-def serialize_row(Row: row):
+def serialize_row(row: Row):
     return struct.pack(
         f"{ID_SIZE}s{USERNAME_SIZE}s{EMAIL_SIZE}s",
-        Row.id.to_bytes(ID_SIZE, byteorder="little"),
-        Row.username.encode("utf-8").ljust(USERNAME_SIZE, b"\0"),
-        Row.email.encode("utf-8").ljust(EMAIL_SIZE, b"\0"),
+        row.id.to_bytes(ID_SIZE, byteorder="little"),
+        row.username.encode("utf-8").ljust(USERNAME_SIZE, b"\0"),
+        row.email.encode("utf-8").ljust(EMAIL_SIZE, b"\0"),
     )
 
 
-def deserialize_row(data) -> row:
+def deserialize_row(data) -> Row:
     try:
-        unpacked_data = struct.unpack(
-            f"{ID_SIZE}s{USERNAME_SIZE}s{EMAIL_SIZE}s", data
-        )
-        return row(
+        unpacked_data = struct.unpack(f"{ID_SIZE}s{USERNAME_SIZE}s{EMAIL_SIZE}s", data)
+        return Row(
             int.from_bytes(unpacked_data[0], byteorder="little"),
             unpacked_data[1].decode("utf-8").rstrip("\x00"),
             unpacked_data[2].decode("utf-8").rstrip("\x00"),
@@ -174,5 +152,5 @@ def deserialize_row(data) -> row:
         return None
 
 
-def print_row(Row: row) -> None:
-    print(Row.id, Row.username, Row.email)
+def print_row(row: Row) -> None:
+    print(row.id, row.username, row.email)
